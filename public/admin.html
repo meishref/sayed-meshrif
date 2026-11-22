@@ -1,0 +1,57 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>لوحة التحكم</title>
+<style>
+:root{--navy:#0f1f3d;--gold:#c8a24a;--bg:#f2f2f2;--tx:#1b1b1b;--card:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1426;--tx:#eee;--card:#16233f}}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:var(--tx)}
+nav{background:var(--navy);padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}nav b{color:var(--gold);margin-left:auto}
+button{background:var(--gold);color:var(--navy);border:0;padding:8px 14px;border-radius:6px;font:700 .9rem Tahoma;cursor:pointer}button.x{background:#c0392b;color:#fff}button.g{background:#2e8b57;color:#fff}
+main{padding:14px;max-width:1100px;margin:auto}.card{background:var(--card);padding:12px;border-radius:8px;margin-bottom:10px;box-shadow:0 1px 4px #0002}
+.stats{display:flex;gap:10px;flex-wrap:wrap}.stats .card{flex:1;min-width:120px;text-align:center}.stats h2{margin:0;color:var(--gold)}
+input,select{padding:8px;border:1px solid #999;border-radius:6px;background:var(--card);color:var(--tx);font:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.urgent{border-right:5px solid #c0392b}
+.tag{background:var(--navy);color:var(--gold);padding:2px 8px;border-radius:10px;font-size:.8rem}
+#login{max-width:320px;margin:90px auto;text-align:center}
+</style></head><body>
+<div id="login" class="card"><h3>دخول الأدمن</h3><input type="password" id="pw" placeholder="كلمة المرور"><br><br><button onclick="login()">دخول</button><p id="err" style="color:#c0392b"></p></div>
+<div id="app" hidden>
+<nav><button onclick="tab('ap')">المواعيد</button><button onclick="tab('cs')">القضايا</button><button onclick="tab('st')">⏰ المواعيد المتاحة</button><button onclick="csv()">تصدير Excel</button><b>الأستاذ سيد مشرف</b><button class="x" onclick="logout()">خروج</button></nav>
+<main><div class="stats" id="stats"></div><br>
+<div id="ap"><div class="row"><select id="fb" onchange="draw()"><option value="">كل الفروع</option><option>الغنايم - أسيوط</option><option>فيصل - القاهرة</option></select>
+<select id="fs" onchange="draw()"><option value="">كل الحالات</option><option>جديد</option><option>مؤكد</option><option>مرفوض</option><option>ملغي</option><option>تم</option></select></div><div id="apl"></div></div>
+<div id="cs" hidden><div class="card"><b>إضافة قضية</b><div class="row">
+<input id="c_client" placeholder="اسم العميل"><input id="c_phone" placeholder="الموبايل"><input id="c_caseNo" placeholder="رقم القضية"><input id="c_court" placeholder="المحكمة / النيابة">
+<input type="date" id="c_nextSession" title="الجلسة القادمة"><input id="c_status" placeholder="الحالة"><input type="number" id="c_fees" placeholder="الأتعاب"><input type="number" id="c_paid" placeholder="المدفوع"><input id="c_notes" placeholder="ملاحظات">
+<button onclick="addCase()">حفظ</button></div></div><div id="csl"></div></div><div id="st" hidden><div class="card"><b>جدول المواعيد الأسبوعي</b><p><small>حدد الأيام اللي بتشتغل فيها وأول ميعاد وآخر ميعاد ومدة كل ميعاد. الزائر هيشوف المواعيد دي بس لما يختار اليوم.</small></p><div id="stw"></div>
+<hr><b>أيام إجازة محددة (تواريخ)</b><div class="row"><input type="date" id="offd"><button onclick="addOff()">إضافة إجازة</button></div><div class="row" id="offl"></div>
+<button onclick="saveSt()">💾 حفظ الإعدادات</button> <b id="stm"></b></div></div></main></div>
+<script>
+let ST=null;const DNM=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];let T=sessionStorage.getItem('t'),D={appointments:[],cases:[]};const $=s=>document.getElementById(s);
+const api=(u,m='GET',b)=>fetch(u,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+T},body:b?JSON.stringify(b):undefined}).then(r=>{if(r.status==401){logout();throw 0}return r.json()});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('pw').value})});const j=await r.json();if(r.ok){T=j.token;sessionStorage.setItem('t',T);init()}else $('err').textContent=j.error}
+function logout(){sessionStorage.removeItem('t');location.reload()}
+function tab(t){['ap','cs','st'].forEach(x=>$(x).hidden=x!=t)}
+async function init(){if(!T)return;$('login').hidden=true;$('app').hidden=false;D=await api('/api/admin/data');if(!ST){ST=JSON.parse(JSON.stringify(D.settings));drawSt()}draw()}
+function draw(){const today=new Date().toISOString().slice(0,10),A=D.appointments;
+const soon=D.cases.filter(c=>c.nextSession&&c.nextSession>=today&&c.nextSession<=new Date(Date.now()+3*864e5).toISOString().slice(0,10));
+$('stats').innerHTML=`<div class="card"><h2>${A.filter(a=>a.date==today).length}</h2>طلبات اليوم</div><div class="card"><h2>${A.filter(a=>a.status=='جديد').length}</h2>جديدة</div><div class="card"><h2>${A.filter(a=>a.urgent&&a.status=='جديد').length}</h2>عاجلة</div><div class="card"><h2>${soon.length}</h2>جلسات خلال 3 أيام</div>`;
+const fb=$('fb').value,fs=$('fs').value;
+$('apl').innerHTML=A.filter(a=>(!fb||a.branch==fb)&&(!fs||a.status==fs)).sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time)).map(a=>`<div class="card ${a.urgent?'urgent':''}"><b>${esc(a.name)}</b> <a href="tel:${esc(a.phone)}">${esc(a.phone)}</a> ${a.urgent?'🚨 عاجل':''} <span class="tag">${esc(a.status)}</span><br>${esc(a.branch)} • ${esc(a.type)} • ${a.date} ${a.time}<br><small>${esc(a.notes)}</small><div class="row" style="margin-top:8px"><button class="g" onclick="st('${a.id}','مؤكد')">تأكيد</button><button onclick="st('${a.id}','تم')">تم</button><button class="x" onclick="st('${a.id}','مرفوض')">رفض</button><button class="x" onclick="st('${a.id}','ملغي')">إلغاء</button><button class="x" onclick="del('appointments','${a.id}')">حذف</button></div></div>`).join('')||'لا توجد مواعيد';
+$('csl').innerHTML=D.cases.map(c=>`<div class="card ${soon.includes(c)?'urgent':''}"><b>${esc(c.client)}</b> ${esc(c.phone)} <span class="tag">${esc(c.status)}</span><br>قضية: ${esc(c.caseNo)} • ${esc(c.court)} • الجلسة: ${esc(c.nextSession)}<br>الأتعاب ${c.fees} | المدفوع ${c.paid} | المتبقي <b>${c.fees-c.paid}</b><br><small>${esc(c.notes)}</small><div class="row"><button onclick="ns('${c.id}')">تعديل الجلسة</button><button class="x" onclick="del('cases','${c.id}')">حذف</button></div></div>`).join('')||'لا توجد قضايا'}
+async function st(id,status){await api('/api/admin/appointments/'+id,'PATCH',{status});init()}
+async function del(k,id){if(!confirm('متأكد من الحذف؟'))return;await api(`/api/admin/${k}/${id}`,'DELETE');init()}
+async function addCase(){const b={};['client','phone','caseNo','court','nextSession','status','fees','paid','notes'].forEach(k=>b[k]=$('c_'+k).value);if(!b.client)return alert('اكتب اسم العميل');await api('/api/admin/cases','POST',b);document.querySelectorAll('#cs input').forEach(i=>i.value='');init()}
+async function ns(id){const v=prompt('تاريخ الجلسة الجديد (YYYY-MM-DD)');if(v){await api('/api/admin/cases/'+id,'PUT',{nextSession:v});init()}}
+function csv(){const h=['الاسم','الموبايل','الفرع','النوع','التاريخ','الوقت','الحالة','عاجل','ملاحظات'];
+const r=D.appointments.map(a=>[a.name,a.phone,a.branch,a.type,a.date,a.time,a.status,a.urgent?'نعم':'لا',a.notes].map(v=>'"'+String(v).replace(/"/g,'""').replace(/^([=+\-@])/,"'$1")+'"').join(','));
+const u=URL.createObjectURL(new Blob(['\ufeff'+[h.join(','),...r].join('\n')],{type:'text/csv'}));const l=document.createElement('a');l.href=u;l.download='appointments.csv';l.click()}
+function drawSt(){
+ $('stw').innerHTML=[6,0,1,2,3,4,5].map(i=>{const c=ST.schedule[i];return `<div class="row"><label style="width:95px"><input type="checkbox" id="on${i}" ${c.on?'checked':''}> <b>${DNM[i]}</b></label>من <input type="time" id="fr${i}" value="${c.from}"> آخر ميعاد <input type="time" id="la${i}" value="${c.last}"> كل <select id="sp${i}">${[15,20,30,45,60,90,120].map(v=>`<option value="${v}" ${v==c.step?'selected':''}>${v} دقيقة</option>`).join('')}</select></div>`}).join('');
+ $('offl').innerHTML=ST.off.map(d=>`<span class="tag">${d} <a href="#" onclick="rmOff('${d}');return false" style="color:#fff">✕</a></span>`).join('')||'<small>لا توجد إجازات</small>'}
+function readSt(){for(let i=0;i<7;i++)ST.schedule[i]={on:$('on'+i).checked,from:$('fr'+i).value,last:$('la'+i).value,step:+$('sp'+i).value}}
+function addOff(){readSt();const v=$('offd').value;if(v&&!ST.off.includes(v)){ST.off.push(v);ST.off.sort()}$('offd').value='';drawSt()}
+function rmOff(d){readSt();ST.off=ST.off.filter(x=>x!=d);drawSt()}
+async function saveSt(){readSt();const r=await api('/api/admin/settings','PUT',ST);if(r.error){$('stm').style.color='#c0392b';$('stm').textContent=r.error;return}ST=r;drawSt();$('stm').style.color='#2e8b57';$('stm').textContent='✅ تم الحفظ';setTimeout(()=>$('stm').textContent='',3000)}
+init();
+</script></body></html>
