@@ -1,1 +1,1 @@
-{"name":"sayed-moshref-law","version":"1.0.0","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"express":"^4.19.2"},"engines":{"node":">=18"}}
+{"name":"sayed-moshref-law","version":"2.0.0","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"express":"^4.19.2","mongodb":"^6.8.0"},"engines":{"node":"22.x"}}
